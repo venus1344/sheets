@@ -1,0 +1,21 @@
+{
+  "name": "sheets",
+  "version": "1.0.0",
+  "description": "Integration between tai and gsheets",
+  "main": "app.js",
+  "scripts": {
+    "run": "nodemon app.js",
+    "start": "node app.js"
+  },
+  "keywords": [
+    "sheets",
+    "google",
+    "slack"
+  ],
+  "author": "Daniel E.B",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1",
+    "nodemon": "^3.1.11"
+  }
+}
