@@ -1,6 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const basicAuth = require('express-basic-auth');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { createBullBoard } = require('@bull-board/api');
@@ -29,7 +31,21 @@ createBullBoard({
 });
 
 const app = express();
-app.use(bodyParser.json());
+
+// Security headers
+app.use(helmet());
+
+// Rate limiting - 100 requests per 15 minutes per IP
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later' }
+});
+app.use(limiter);
+
+app.use(bodyParser.json({ limit: '10kb' }));
 
 // Mount Bull Board dashboard with basic auth
 app.use(
