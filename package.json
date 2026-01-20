@@ -17,11 +17,16 @@
   "author": "Daniel E.B",
   "license": "MIT",
   "dependencies": {
-    "@google-cloud/local-auth": "^2.1.0",
+    "@bull-board/express": "^6.16.2",
+    "better-sqlite3": "^12.6.2",
     "body-parser": "^2.2.2",
+    "bull": "^4.16.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "googleapis": "^105.0.0"
+    "express-basic-auth": "^1.2.1",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^105.0.0",
+    "ioredis": "^5.9.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
