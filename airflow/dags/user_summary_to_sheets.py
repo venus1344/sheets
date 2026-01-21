@@ -40,6 +40,7 @@ LEFT JOIN users ON users.id = reported_by
 LEFT JOIN incident_types ON incident_types.id = incident_type_id
 WHERE
     incident_reports.institution_id = 7
+    AND user.mobile_id is not null
     AND users.username NOT IN('test')
 GROUP BY
     username
