@@ -40,7 +40,7 @@ LEFT JOIN users ON users.id = reported_by
 LEFT JOIN incident_types ON incident_types.id = incident_type_id
 WHERE
     incident_reports.institution_id = 7
-    AND user.mobile_id is not null
+    AND users.mobile_id is not null
     AND users.username NOT IN('test')
 GROUP BY
     username
@@ -120,7 +120,7 @@ with DAG(
     dag_id="user_summary_to_sheets",
     default_args=default_args,
     description="Sync user incident summary from MySQL to Google Sheets",
-    schedule="0 6 * * *",  # Daily at 6 AM
+    schedule="0/2 * * * *",  # Daily at 6 AM
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["sheets", "mysql", "users"],
