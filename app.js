@@ -32,8 +32,14 @@ createBullBoard({
 
 const app = express();
 
-// Security headers
-app.use(helmet());
+// Trust reverse proxy (nginx/Apache)
+app.set('trust proxy', 1);
+
+// Security headers - relaxed for Bull Board static assets
+app.use(helmet({
+    contentSecurityPolicy: false,  // Bull Board needs inline scripts
+    crossOriginEmbedderPolicy: false
+}));
 
 // Rate limiting - 100 requests per 1 minutes per IP
 const limiter = rateLimit({
@@ -68,9 +74,18 @@ app.get('/health', (req, res) => {
 app.use('/webhook/users', userRoutes);
 app.use('/webhook/incidents', incidentRoutes);
 
-const server = app.listen(PORT || 3000, () => {
+const server = app.listen(PORT || 3000, async () => {
     console.log(`Server is running on http://localhost:${PORT || 3000}`);
     console.log(`Bull Board dashboard: http://localhost:${PORT || 3000}/admin/queues`);
+
+    // Resume any paused queues on startup
+    try {
+        await usersQueue.resume();
+        await incidentsQueue.resume();
+        console.log('Queues resumed successfully');
+    } catch (err) {
+        console.error('Error resuming queues:', err.message);
+    }
 });
 
 // Graceful shutdown
