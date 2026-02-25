@@ -1,0 +1,7 @@
+node_modules/
+.env
+svc.json
+.airflow
+logs/
+__pycache__
+*.db

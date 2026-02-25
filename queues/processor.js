@@ -10,8 +10,8 @@ const DATA_START_ROW = 4;  // Row 4 (row 3 is header)
 const DEFAULT_DEPARTMENT = 'Antipoaching';
 
 // Batch processing configuration
-const BATCH_SIZE = 20;           // Max jobs per batch
-const BATCH_TIMEOUT_MS = 5000;   // Max wait time to fill batch (5 seconds)
+const BATCH_SIZE = 10;           // Max jobs per batch
+const BATCH_TIMEOUT_MS = 1000;   // Max wait time to fill batch (5 seconds)
 
 let batchBuffer = [];
 let batchTimer = null;
@@ -204,7 +204,7 @@ function addToBatch(job) {
 }
 
 // Process jobs by adding to batch
-usersQueue.process('*', async (job) => {
+usersQueue.process('*', 10,  async (job) => {
     console.log(`Queuing user job ${job.name}:${job.id} for batch processing`);
     return addToBatch(job);
 });

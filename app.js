@@ -56,11 +56,12 @@ app.use(bodyParser.json({ limit: '10kb' }));
 // Mount Bull Board dashboard with basic auth
 app.use(
     '/admin/queues',
-    basicAuth({
-        users: { [process.env.ADMIN_USER || 'admin']: process.env.ADMIN_PASSWORD || 'admin' },
-        challenge: true,
-        realm: 'Bull Board'
-    }),
+//    basicAuth({
+  //      users: { [process.env.ADMIN_USER || 'admin']: process.env.ADMIN_PASSWORD || 'admin' },
+//	users: {['admin']:'admin'},
+    //  challenge: true,
+      //  realm: 'Bull Board'
+ //   }),
     serverAdapter.getRouter()
 );
 
