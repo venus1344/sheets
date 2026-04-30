@@ -8,6 +8,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 
+from utils.slack_notifications import notify_slack_on_failure
 
 MYSQL_CONN_ID = "mysql_conn_id"  # Airflow Connection ID
 print(f"mysql conenciton on: {MYSQL_CONN_ID}")
@@ -26,6 +27,7 @@ default_args = {
     "email_on_retry": False,
     "retries": 3,
     "retry_delay": timedelta(minutes=5),
+    "on_failure_callback": notify_slack_on_failure,
 }
 
 USER_SUMMARY_QUERY = """
@@ -120,7 +122,7 @@ with DAG(
     dag_id="user_summary_to_sheets",
     default_args=default_args,
     description="Sync user incident summary from MySQL to Google Sheets",
-    schedule="0/2 * * * *",  # Daily at 6 AM
+    schedule="0 6 * * *",  # Daily at 6 AM
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["sheets", "mysql", "users"],
