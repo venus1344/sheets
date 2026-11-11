@@ -1,6 +1,7 @@
 const incidentsQueue = require('./incidents.queue');
 const GoogleSheet = require('../config/google');
 const IncidentUpdate = require('../models/incident-update');
+const { notifyIncidentFailure } = require('../utils/notifications');
 
 const USERS_SPREADSHEET = process.env.USERS_SPREADSHEET_ID;
 
@@ -56,6 +57,23 @@ incidentsQueue.on('completed', (job, result) => {
 
 incidentsQueue.on('failed', (job, err) => {
     console.error(`Incident job ${job.id} failed with error:`, err.message);
+
+    // Bull emits 'failed' for every attempt. Only alert once the retries are
+    // exhausted, otherwise one incident produces an alert per attempt.
+    const attempts = job.opts.attempts || 1;
+
+    if (job.attemptsMade < attempts) {
+        console.warn(`Incident job ${job.id} will retry (attempt ${job.attemptsMade}/${attempts})`);
+        return;
+    }
+
+    notifyIncidentFailure({
+        jobId: job.id,
+        updateId: job.data?.updateId,
+        payload: job.data?.payload,
+        attempts: job.attemptsMade,
+        error: err.message,
+    });
 });
 
 module.exports = { incidentsQueue, processIncidentToSheets };

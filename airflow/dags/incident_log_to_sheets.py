@@ -19,6 +19,7 @@ def get_config():
     return {
         "webhook_url": Variable.get("sheets_webhook_url", default_var="http://localhost:3500"),
         "api_key": Variable.get("sheets_api_key"),
+        # Sent as X-Client-Id so the API rate limiter lets this DAG through.
         "client_id": Variable.get("sheets_client_id", default_var=None),
     }
 
@@ -135,6 +136,14 @@ def send_to_webhook(**context):
     # A retry re-runs this task with the batch fetched by the earlier attempt, so
     # drop anything that attempt already delivered.
     last_synced_id = int(Variable.get(INCIDENT_CURSOR_VARIABLE, default_var="0") or 0)
+
+    if any("incident_id" not in incident for incident in incidents):
+        raise AirflowException(
+            "The XCom batch from task 'fetch_incident_data' has no incident_id, so it "
+            "was produced by an older version of this DAG. Clear the whole DAG run "
+            "(not just this task) so fetch_incident_data re-runs, then retry."
+        )
+
     incidents = [incident for incident in incidents if incident["incident_id"] > last_synced_id]
 
     if not incidents:

@@ -12,6 +12,7 @@ const { ExpressAdapter } = require('@bull-board/express');
 
 const userRoutes = require('./routes/user.routes');
 const incidentRoutes = require('./routes/incident.routes');
+const { flushNotifications } = require('./utils/notifications');
 const usersQueue = require('./queues/sheets.queue');
 const incidentsQueue = require('./queues/incidents.queue');
 
@@ -112,6 +113,8 @@ const server = app.listen(PORT || 3000, async () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received, closing queues...');
+    // Send any batched failure alerts before the process exits.
+    await flushNotifications();
     await Promise.all([usersQueue.close(), incidentsQueue.close()]);
     server.close(() => {
         console.log('Server closed');
