@@ -172,9 +172,13 @@ async function flushNotifications() {
     const failures = pendingFailures;
     pendingFailures = [];
 
-    await postToSlack({
+    const sent = await postToSlack({
         attachments: [{ color: '#FF0000', blocks: buildIncidentFailureBlocks(failures) }],
     });
+
+    if (sent) {
+        console.log('Slack failure notification sent');
+    }
 }
 
 /**
