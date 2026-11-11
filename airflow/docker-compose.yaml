@@ -164,6 +164,9 @@ services:
 
   airflow-worker:
     <<: *airflow-common
+    privileged: true
+    pid: "host"
+    user: "0:0"
     command: celery worker
     healthcheck:
       # yamllint disable rule:line-length

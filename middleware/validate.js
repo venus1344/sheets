@@ -51,7 +51,7 @@ const validateUserPayload = (req, res, next) => {
     next();
 };
 
-const VALID_TYPES = ['Sighting', 'Incident'];
+//const VALID_TYPES = ['Sighting', 'Incident'];
 const VALID_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 const validateIncidentPayload = (req, res, next) => {
@@ -66,38 +66,13 @@ const validateIncidentPayload = (req, res, next) => {
 
     if (!type || typeof type !== 'string') {
         errors.push('type is required and must be a string');
-    } else if (!VALID_TYPES.includes(type)) {
-        errors.push(`type must be one of: ${VALID_TYPES.join(', ')}`);
     }
 
-    if (!category || typeof category !== 'string') {
-        errors.push('category is required and must be a string');
-    } else if (category.length > MAX_STRING_LENGTH) {
-        errors.push(`category must be ${MAX_STRING_LENGTH} characters or less`);
-    }
-
-    if (!severity || typeof severity !== 'string') {
-        errors.push('severity is required and must be a string');
-    } else if (!VALID_SEVERITIES.includes(severity)) {
-        errors.push(`severity must be one of: ${VALID_SEVERITIES.join(', ')}`);
-    }
 
     if (!reportedBy || typeof reportedBy !== 'string') {
         errors.push('reportedBy is required and must be a string');
     } else if (reportedBy.length > MAX_STRING_LENGTH) {
         errors.push(`reportedBy must be ${MAX_STRING_LENGTH} characters or less`);
-    }
-
-    if (!team || typeof team !== 'string') {
-        errors.push('team is required and must be a string');
-    } else if (team.length > MAX_STRING_LENGTH) {
-        errors.push(`team must be ${MAX_STRING_LENGTH} characters or less`);
-    }
-
-    if (!location || typeof location !== 'string') {
-        errors.push('location is required and must be a string');
-    } else if (location.length > MAX_STRING_LENGTH) {
-        errors.push(`location must be ${MAX_STRING_LENGTH} characters or less`);
     }
 
     if (notes !== undefined && typeof notes === 'string' && notes.length > MAX_NOTES_LENGTH) {
@@ -109,10 +84,7 @@ const validateIncidentPayload = (req, res, next) => {
     }
 
     // Sanitize for Google Sheets formula injection
-    req.body.category = sanitizeForSheets(category.trim());
     req.body.reportedBy = sanitizeForSheets(reportedBy.trim());
-    req.body.team = sanitizeForSheets(team.trim());
-    req.body.location = sanitizeForSheets(location.trim());
     if (notes) {
         req.body.notes = sanitizeForSheets(notes.trim());
     }

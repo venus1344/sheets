@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const bodyParser = require('body-parser');
 const basicAuth = require('express-basic-auth');
@@ -32,16 +33,41 @@ createBullBoard({
 
 const app = express();
 
-// Security headers
-app.use(helmet());
+// Trust reverse proxy (nginx/Apache)
+app.set('trust proxy', 1);
 
-// Rate limiting - 100 requests per 1 minutes per IP
+// Security headers - relaxed for Bull Board static assets
+app.use(helmet({
+    contentSecurityPolicy: false,  // Bull Board needs inline scripts
+    crossOriginEmbedderPolicy: false
+}));
+
+// Internal clients (Airflow) may skip the shared rate limit by sending the shared
+// secret in X-Client-Id. Leave INTERNAL_CLIENT_ID unset to disable the bypass.
+const INTERNAL_CLIENT_ID = process.env.INTERNAL_CLIENT_ID;
+
+const isTrustedClient = (req) => {
+    if (!INTERNAL_CLIENT_ID) return false;
+
+    const provided = req.headers['x-client-id'];
+    if (typeof provided !== 'string') return false;
+
+    // Constant-time compare so the secret cannot be guessed byte by byte.
+    const providedBuf = Buffer.from(provided);
+    const expectedBuf = Buffer.from(INTERNAL_CLIENT_ID);
+    return (
+        providedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(providedBuf, expectedBuf)
+    );
+};
+
 const limiter = rateLimit({
     windowMs: 60 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many requests, please try again later' }
+    skip: isTrustedClient,
+    message: { error: 'Too many requests, please try again later' },
 });
 app.use(limiter);
 
@@ -50,11 +76,12 @@ app.use(bodyParser.json({ limit: '10kb' }));
 // Mount Bull Board dashboard with basic auth
 app.use(
     '/admin/queues',
-    basicAuth({
-        users: { [process.env.ADMIN_USER || 'admin']: process.env.ADMIN_PASSWORD || 'admin' },
-        challenge: true,
-        realm: 'Bull Board'
-    }),
+//    basicAuth({
+  //      users: { [process.env.ADMIN_USER || 'admin']: process.env.ADMIN_PASSWORD || 'admin' },
+//	users: {['admin']:'admin'},
+    //  challenge: true,
+      //  realm: 'Bull Board'
+ //   }),
     serverAdapter.getRouter()
 );
 
@@ -68,9 +95,18 @@ app.get('/health', (req, res) => {
 app.use('/webhook/users', userRoutes);
 app.use('/webhook/incidents', incidentRoutes);
 
-const server = app.listen(PORT || 3000, () => {
+const server = app.listen(PORT || 3000, async () => {
     console.log(`Server is running on http://localhost:${PORT || 3000}`);
     console.log(`Bull Board dashboard: http://localhost:${PORT || 3000}/admin/queues`);
+
+    // Resume any paused queues on startup
+    try {
+        await usersQueue.resume();
+        await incidentsQueue.resume();
+        console.log('Queues resumed successfully');
+    } catch (err) {
+        console.error('Error resuming queues:', err.message);
+    }
 });
 
 // Graceful shutdown

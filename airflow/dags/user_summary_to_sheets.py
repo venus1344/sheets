@@ -8,6 +8,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 
+from utils.slack_notifications import notify_slack_on_failure
 
 MYSQL_CONN_ID = "mysql_conn_id"  # Airflow Connection ID
 print(f"mysql conenciton on: {MYSQL_CONN_ID}")
@@ -26,26 +27,23 @@ default_args = {
     "email_on_retry": False,
     "retries": 3,
     "retry_delay": timedelta(minutes=5),
+    "on_failure_callback": notify_slack_on_failure,
 }
 
 USER_SUMMARY_QUERY = """
 SELECT
     username,
-    COUNT(*) AS incidents_total,
+    COUNT(distinct incident_reports.id) AS incidents_total,
     users.email,
     users.loged_at AS last_login_date
-FROM
-    `incident_reports`
-LEFT JOIN users ON users.id = reported_by
-LEFT JOIN incident_types ON incident_types.id = incident_type_id
+FROM `users`
+    LEFT JOIN `incident_reports` on `reported_by` = `users`.`id`
 WHERE
-    incident_reports.institution_id = 7
-    AND user.mobile_id is not null
-    AND users.username NOT IN('test')
-GROUP BY
-    username
-ORDER BY
-    `users`.`username` ASC
+    users.mobile_id is not null
+    AND users.username NOT IN('test','test2','sighter','hello')
+    AND users.institution_id=7
+GROUP BY username, email, loged_at
+ORDER BY `users`.`username` ASC;
 """
 
 

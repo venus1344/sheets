@@ -8,23 +8,19 @@ async function processIncidentToSheets(payload) {
     const sheet = await GoogleSheet();
 
     // Build row from payload
-    // Columns: Report Date | Type | Category | Severity | Reported By | Team | Location | Notes
+    // Columns: Report Date | Type | Reported By | Notes
     const newRow = [
         payload.reportDate,
         payload.type,
-        payload.category,
-        payload.severity,
         payload.reportedBy,
-        payload.team,
-        payload.location,
         payload.notes || ''
     ];
 
-    console.log(`Appending incident to Incident_Log`);
+    console.log(`Appending incident to Incident Import`);
 
     await sheet.spreadsheets.values.append({
         spreadsheetId: USERS_SPREADSHEET,
-        range: 'Incident_Log!A2:H',
+        range: 'Incident Import!A2:D',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {

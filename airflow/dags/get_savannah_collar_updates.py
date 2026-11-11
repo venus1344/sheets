@@ -9,6 +9,8 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
 
+from utils.slack_notifications import notify_slack_on_failure
+
 logger = logging.getLogger(__name__)
 
 # API Base URL
@@ -355,6 +357,7 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 3,
+    "on_failure_callback": notify_slack_on_failure,
     "retry_delay": timedelta(minutes=2),
 }
 
@@ -362,7 +365,7 @@ with DAG(
     dag_id="savannah_collar_polling",
     default_args=default_args,
     description="Poll Savannah Tracking API for collar data and forward to destination",
-    schedule="30 * * * *",
+    schedule="30 1 * * *",
     start_date=datetime(2026, 2, 17),
     catchup=False,
     tags=["savannah", "collars", "polling"],
