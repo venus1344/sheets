@@ -28,7 +28,7 @@ async function processBatchToGoogleSheets(jobs) {
     // Single read to get current sheet data
     const result = await sheet.spreadsheets.values.get({
         spreadsheetId: USERS_SPREADSHEET,
-        range: 'Raw_Export!B3:F',
+        range: 'Data Import!B3:F',
     });
 
     const rows = result.data.values || [];
@@ -72,7 +72,7 @@ async function processBatchToGoogleSheets(jobs) {
         if (existing) {
             // Update existing row
             const sheetRowNumber = DATA_START_ROW + existing.rowIndex;
-            const range = `Raw_Export!B${sheetRowNumber}:F${sheetRowNumber}`;
+            const range = `Data Import!B${sheetRowNumber}:F${sheetRowNumber}`;
 
             updateDataByRange.set(range, {
                 range,
@@ -90,7 +90,7 @@ async function processBatchToGoogleSheets(jobs) {
             if (existingNewRow) {
                 // Update the pending new row
                 const sheetRowNumber = DATA_START_ROW + existingNewRow.rowIndex;
-                const range = `Raw_Export!B${sheetRowNumber}:F${sheetRowNumber}`;
+                const range = `Data Import!B${sheetRowNumber}:F${sheetRowNumber}`;
 
                 updateDataByRange.set(range, {
                     range,
@@ -104,7 +104,7 @@ async function processBatchToGoogleSheets(jobs) {
                 });
             } else {
                 // Append new row
-                const range = `Raw_Export!B${nextNewRow}:F${nextNewRow}`;
+                const range = `Data Import!B${nextNewRow}:F${nextNewRow}`;
 
                 updateDataByRange.set(range, {
                     range,

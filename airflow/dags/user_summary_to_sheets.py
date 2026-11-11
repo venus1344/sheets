@@ -33,21 +33,17 @@ default_args = {
 USER_SUMMARY_QUERY = """
 SELECT
     username,
-    COUNT(*) AS incidents_total,
+    COUNT(distinct incident_reports.id) AS incidents_total,
     users.email,
     users.loged_at AS last_login_date
-FROM
-    `incident_reports`
-LEFT JOIN users ON users.id = reported_by
-LEFT JOIN incident_types ON incident_types.id = incident_type_id
+FROM `users`
+    LEFT JOIN `incident_reports` on `reported_by` = `users`.`id`
 WHERE
-    incident_reports.institution_id = 7
-    AND users.mobile_id is not null
-    AND users.username NOT IN('test')
-GROUP BY
-    username
-ORDER BY
-    `users`.`username` ASC
+    users.mobile_id is not null
+    AND users.username NOT IN('test','test2','sighter','hello')
+    AND users.institution_id=7
+GROUP BY username, email, loged_at
+ORDER BY `users`.`username` ASC;
 """
 
 

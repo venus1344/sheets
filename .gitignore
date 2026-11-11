@@ -5,3 +5,8 @@ svc.json
 logs/
 __pycache__
 *.db
+
+*.bak
+*.backup
+*.bk
+.scannerwork/

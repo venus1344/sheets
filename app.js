@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const bodyParser = require('body-parser');
 const basicAuth = require('express-basic-auth');
@@ -41,13 +42,32 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-// Rate limiting - 100 requests per 1 minutes per IP
+// Internal clients (Airflow) may skip the shared rate limit by sending the shared
+// secret in X-Client-Id. Leave INTERNAL_CLIENT_ID unset to disable the bypass.
+const INTERNAL_CLIENT_ID = process.env.INTERNAL_CLIENT_ID;
+
+const isTrustedClient = (req) => {
+    if (!INTERNAL_CLIENT_ID) return false;
+
+    const provided = req.headers['x-client-id'];
+    if (typeof provided !== 'string') return false;
+
+    // Constant-time compare so the secret cannot be guessed byte by byte.
+    const providedBuf = Buffer.from(provided);
+    const expectedBuf = Buffer.from(INTERNAL_CLIENT_ID);
+    return (
+        providedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(providedBuf, expectedBuf)
+    );
+};
+
 const limiter = rateLimit({
     windowMs: 60 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many requests, please try again later' }
+    skip: isTrustedClient,
+    message: { error: 'Too many requests, please try again later' },
 });
 app.use(limiter);
 
