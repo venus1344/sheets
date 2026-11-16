@@ -72,6 +72,7 @@ SELECT
 FROM `incident_reports`
 LEFT JOIN `incident_types` as it on it.id = `incident_reports`.`incident_type_id`
 LEFT JOIN `users` as u on u.id = `incident_reports`.reported_by
+WHERE u.institution_id = 7
 ORDER BY `incident_reports`.`id` ASC;
 """
 
