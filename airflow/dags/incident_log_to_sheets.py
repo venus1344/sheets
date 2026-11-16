@@ -57,6 +57,7 @@ LEFT JOIN `incident_types` as it on it.id = `incident_reports`.`incident_type_id
 LEFT JOIN `users` as u on u.id=reported_by
 WHERE 
     `incident_reports`.`id` > %s
+    AND u.institution_id = 7
 ORDER BY 
     `incident_reports`.`id` ASC;
 """
@@ -64,9 +65,11 @@ ORDER BY
 # First-run seed: treat everything reported at or before INITIAL_SYNC_FROM as
 # already synced so the first run does not replay historical incidents.
 CURSOR_SEED_SQL = """
-SELECT COALESCE(MAX(`id`), 0)
+SELECT COALESCE(MAX(`incident_reports`.`id`), 0)
 FROM `incident_reports`
+LEFT JOIN `users` as u on u.id = `incident_reports`.reported_by
 WHERE reported_datetime <= %s
+  AND u.institution_id = 7
 """
 
 
