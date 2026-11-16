@@ -5,7 +5,7 @@ const path = require('path');
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const CREDENTIALS = path.join(__dirname, 'svc.json');
 
-GoogleSheet = async () => {
+const GoogleSheet = async () => {
     const auth = await new GoogleAuth({
         keyFile: CREDENTIALS,
         scopes: SCOPES,

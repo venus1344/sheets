@@ -5,31 +5,67 @@ const { notifyIncidentFailure } = require('../utils/notifications');
 
 const USERS_SPREADSHEET = process.env.USERS_SPREADSHEET_ID;
 
+// Columns: A=Report Date | B=Type | C=Reported By | D=Notes | E=Incident ID
+const INCIDENT_RANGE = 'Incident Import!A2:E';
+const INCIDENT_ID_COL = 4; // column E within the A:E range (0-indexed)
+const DATA_START_ROW = 2;
+
 async function processIncidentToSheets(payload) {
+    const incidentId = String(payload.incidentId ?? '').trim();
+
+    if (!incidentId) {
+        throw new Error('incidentId is required');
+    }
+
     const sheet = await GoogleSheet();
 
-    // Build row from payload
-    // Columns: Report Date | Type | Reported By | Notes
     const newRow = [
         payload.reportDate,
         payload.type,
         payload.reportedBy,
-        payload.notes || ''
+        payload.notes || '',
+        incidentId,
     ];
 
-    console.log(`Appending incident to Incident Import`);
+    // Find an existing row for this incident so a retry updates it instead of
+    // appending a duplicate.
+    const result = await sheet.spreadsheets.values.get({
+        spreadsheetId: USERS_SPREADSHEET,
+        range: INCIDENT_RANGE,
+    });
+
+    const rows = result.data.values || [];
+    const existingIndex = rows.findIndex(
+        (row) => String(row[INCIDENT_ID_COL] ?? '').trim() === incidentId
+    );
+
+    if (existingIndex !== -1) {
+        const sheetRow = DATA_START_ROW + existingIndex;
+        console.log(`Updating existing incident ${incidentId} at row ${sheetRow}`);
+
+        await sheet.spreadsheets.values.update({
+            spreadsheetId: USERS_SPREADSHEET,
+            range: `Incident Import!A${sheetRow}:E${sheetRow}`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: { values: [newRow] },
+        });
+
+        return { action: 'updated', row: sheetRow, incidentId };
+    }
+
+    console.log(`Appending new incident ${incidentId}`);
 
     await sheet.spreadsheets.values.append({
         spreadsheetId: USERS_SPREADSHEET,
-        range: 'Incident Import!A2:D',
+        range: 'Incident Import!A2:E',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-            values: [newRow]
-        }
+            values: [newRow],
+        },
     });
 
-    return 'OK';
+    return { action: 'appended', incidentId };
 }
 
 incidentsQueue.process('*', async (job) => {
