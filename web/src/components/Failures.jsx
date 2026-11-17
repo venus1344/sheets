@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { formatDateTime } from '../format.js';
 
 const PAGE_SIZE = 50;
 
@@ -91,7 +92,7 @@ export default function Failures() {
                                     ? <span className="badge red">Escalated</span>
                                     : <span className="badge amber">Failed</span>}
                             </td>
-                            <td className="small muted">{r.created_at}</td>
+                            <td className="small muted">{formatDateTime(r.created_at)}</td>
                             <td>
                                 {!r.escalated && (
                                     <button className="btn secondary" onClick={() => retry(r.id)} disabled={busyId === r.id}>

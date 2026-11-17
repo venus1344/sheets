@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import StatusBadge from './StatusBadge.jsx';
-import { friendlyDag, friendlyAlert, friendlyType } from '../format.js';
+import { friendlyDag, friendlyAlert, friendlyType, formatDateTime } from '../format.js';
 
 const successRate = (completed, failed) => {
     const total = completed + failed;
@@ -61,7 +61,7 @@ export default function Overview() {
                         <div className="row-between">
                             <StatusBadge status={run.status} />
                             <span className="muted small">
-                                {run.finished_at ? new Date(run.finished_at).toLocaleString() : '—'}
+                                {run.finished_at ? formatDateTime(run.finished_at) : '—'}
                             </span>
                         </div>
                     </div>
@@ -120,7 +120,7 @@ export default function Overview() {
                         <li key={a.id}>
                             <span className="badge gray">{friendlyAlert(a.alert_type)}</span>
                             <span>{a.subject}</span>
-                            <span className="muted small">{a.created_at}</span>
+                            <span className="muted small">{formatDateTime(a.created_at)}</span>
                         </li>
                     ))}
                 </ul>

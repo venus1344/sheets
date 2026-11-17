@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import StatusBadge from './StatusBadge.jsx';
-import { friendlyType } from '../format.js';
+import { friendlyType, formatDateTime } from '../format.js';
 
 export default function Reconciliations() {
     const [rows, setRows] = useState([]);
@@ -30,7 +30,7 @@ export default function Reconciliations() {
                                 <td className="small">{s ? s.added : '—'}</td>
                                 <td className="small">{s ? s.updated : '—'}</td>
                                 <td className="small">{s ? s.deleted : '—'}</td>
-                                <td className="small muted">{r.created_at}</td>
+                                <td className="small muted">{formatDateTime(r.created_at)}</td>
                             </tr>
                         );
                     })}

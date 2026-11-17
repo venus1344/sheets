@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import PasswordInput from './PasswordInput.jsx';
 import ConfirmDialog from './ConfirmDialog.jsx';
 import { TrashIcon, RestoreIcon } from './icons.jsx';
+import { formatDate, formatDateTime } from '../format.js';
 
 export default function Users() {
     const [users, setUsers] = useState([]);
@@ -110,10 +111,10 @@ export default function Users() {
                                 <td>{u.role === 'technical' ? <span className="badge amber">technical</span> : <span className="badge gray">office admin</span>}</td>
                                 <td>
                                     {isDeleted
-                                        ? <span className="badge gray" title={`Deleted ${u.deleted_at}`}>Deleted</span>
+                                        ? <span className="badge gray" title={`Deleted ${formatDateTime(u.deleted_at)}`}>Deleted</span>
                                         : <span className="badge green">Active</span>}
                                 </td>
-                                <td className="small muted">{u.created_at}</td>
+                                <td className="small muted">{formatDate(u.created_at)}</td>
                                 <td className="actions">
                                     {isSelf ? (
                                         <span className="small muted">This is you</span>
