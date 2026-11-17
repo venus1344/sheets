@@ -90,6 +90,39 @@ module.exports = {
         return res.json({ alerts: Alert.recent(limit) });
     },
 
+    listUsers(req, res) {
+        return res.json({ users: User.list() });
+    },
+
+    async createUser(req, res) {
+        const { email, password, role } = req.body || {};
+        const errors = [];
+
+        if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.push('a valid email is required');
+        }
+        if (!password || typeof password !== 'string' || password.length < 8) {
+            errors.push('password must be at least 8 characters');
+        }
+        if (!['office_admin', 'technical'].includes(role)) {
+            errors.push('role must be office_admin or technical');
+        }
+
+        if (errors.length) {
+            return res.status(400).json({ error: 'Validation failed', details: errors });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        if (User.findByEmail(normalizedEmail)) {
+            return res.status(409).json({ error: 'A user with that email already exists' });
+        }
+
+        const passwordHash = bcrypt.hashSync(password, 10);
+        const created = User.create({ email: normalizedEmail, passwordHash, role });
+
+        return res.status(201).json({ user: created });
+    },
+
     async retry(req, res) {
         const { type, updateId } = req.body || {};
 

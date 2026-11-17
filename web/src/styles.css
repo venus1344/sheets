@@ -138,8 +138,8 @@ button.link {
 button.link:hover { color: var(--text); }
 
 label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
-input { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; color: var(--text); }
-input:focus { outline: none; border-color: var(--accent); }
+input, select { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; color: var(--text); background: var(--panel); }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
 
 .login-card { width: 320px; }
 .login-card h1 { margin: 0 0 4px; font-size: 20px; }

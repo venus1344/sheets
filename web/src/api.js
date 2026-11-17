@@ -27,4 +27,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ type, updateId }),
     }),
+    users: () => request('/api/admin/users'),
+    createUser: (email, password, role) => request('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, role }),
+    }),
 };

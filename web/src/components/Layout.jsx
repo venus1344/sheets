@@ -4,32 +4,35 @@ import Overview from './Overview.jsx';
 import DagRuns from './DagRuns.jsx';
 import Failures from './Failures.jsx';
 import Reconciliations from './Reconciliations.jsx';
+import Users from './Users.jsx';
 
-const VIEWS = {
-    overview: { label: 'Overview', component: Overview },
-    dags: { label: 'DAG Runs', component: DagRuns },
-    failures: { label: 'Failures', component: Failures },
-    reconciliations: { label: 'Reconciliations', component: Reconciliations },
-};
-
-function currentView() {
+function viewFromHash(views) {
     const hash = window.location.hash.replace(/^#\/?/, '');
-    return VIEWS[hash] ? hash : 'overview';
+    return views[hash] ? hash : 'overview';
 }
 
 export default function Layout({ user, onLogout }) {
-    const [view, setView] = useState(currentView());
+    const views = {
+        overview: { label: 'Overview', component: Overview },
+        dags: { label: 'DAG Runs', component: DagRuns },
+        failures: { label: 'Failures', component: Failures },
+        reconciliations: { label: 'Reconciliations', component: Reconciliations },
+        ...(user.role === 'technical' ? { users: { label: 'Users', component: Users } } : {}),
+    };
+
+    const [view, setView] = useState(() => viewFromHash(views));
 
     useEffect(() => {
-        const onHash = () => setView(currentView());
+        const onHash = () => setView(viewFromHash(views));
         window.addEventListener('hashchange', onHash);
         return () => window.removeEventListener('hashchange', onHash);
+        // role is fixed for the session, so the initial `views` is stable here.
     }, []);
 
-    const Active = VIEWS[view].component;
+    const Active = (views[view] || views.overview).component;
 
     const logout = async () => {
-        await api.logout().catch(() => {});
+        await api.logout().catch(() => { });
         onLogout();
     };
 
@@ -38,7 +41,7 @@ export default function Layout({ user, onLogout }) {
             <aside className="sidebar">
                 <div className="brand">Sheets Sync</div>
                 <nav>
-                    {Object.entries(VIEWS).map(([key, v]) => (
+                    {Object.entries(views).map(([key, v]) => (
                         <a key={key} href={`#/${key}`} className={key === view ? 'active' : ''}>
                             {v.label}
                         </a>
