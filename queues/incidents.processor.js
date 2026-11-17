@@ -12,8 +12,9 @@ const DATA_START_ROW = 2;
 
 // Batch processing: instead of a read + write per incident, accumulate jobs and
 // do ONE read + one batchUpdate (updates) + one append (new rows) per batch.
-const BATCH_SIZE = 10;
-const BATCH_TIMEOUT_MS = 1000;
+// A fixed flush cadence caps Sheets API calls (~45/min) while allowing real batches.
+const MAX_BATCH = 25;
+const FLUSH_INTERVAL_MS = 4000;
 
 /**
  * Upsert a batch of incident payloads into the sheet.
@@ -86,17 +87,17 @@ async function processIncidentBatch(payloads) {
     return { updated: updates.length, appended: toAppend.length };
 }
 
-// --- job batching (mirrors the users processor) ---
+// --- job batching ---
+// Flush on a fixed cadence so batches actually accumulate and Sheets API usage
+// stays predictable. (Bull's default concurrency of 1 serialises jobs, which is
+// why batches were always size 1 — concurrency is set to MAX_BATCH below.)
 
 let batchBuffer = [];
-let batchTimer = null;
+let flushing = false;
 
-function flushBatch() {
-    if (batchTimer) {
-        clearTimeout(batchTimer);
-        batchTimer = null;
-    }
-    if (!batchBuffer.length) return;
+async function flushBatch() {
+    if (flushing || !batchBuffer.length) return;
+    flushing = true;
 
     const entries = batchBuffer.splice(0, batchBuffer.length);
     console.log(`Flushing batch of ${entries.length} incident job(s)`);
@@ -105,35 +106,33 @@ function flushBatch() {
         IncidentUpdate.setProcessing(job.data.updateId);
     }
 
-    processIncidentBatch(entries.map((e) => e.job.data.payload))
-        .then((res) => {
-            for (const { job, resolve } of entries) {
-                IncidentUpdate.setCompleted(job.data.updateId);
-                resolve({ success: true, updateId: job.data.updateId, ...res });
-            }
-        })
-        .catch((error) => {
-            for (const { job, reject } of entries) {
-                IncidentUpdate.setFailed(job.data.updateId, error.message);
-                reject(error);
-            }
-        });
+    try {
+        const res = await processIncidentBatch(entries.map((e) => e.job.data.payload));
+        for (const { job, resolve } of entries) {
+            IncidentUpdate.setCompleted(job.data.updateId);
+            resolve({ success: true, updateId: job.data.updateId, ...res });
+        }
+    } catch (error) {
+        for (const { job, reject } of entries) {
+            IncidentUpdate.setFailed(job.data.updateId, error.message);
+            reject(error);
+        }
+    } finally {
+        flushing = false;
+    }
 }
+
+const flushTimer = setInterval(flushBatch, FLUSH_INTERVAL_MS);
+if (typeof flushTimer.unref === 'function') flushTimer.unref();
 
 function addToBatch(job) {
     return new Promise((resolve, reject) => {
         batchBuffer.push({ job, resolve, reject });
-
-        if (batchBuffer.length >= BATCH_SIZE) {
-            flushBatch();
-        } else if (!batchTimer) {
-            batchTimer = setTimeout(flushBatch, BATCH_TIMEOUT_MS);
-            if (typeof batchTimer.unref === 'function') batchTimer.unref();
-        }
     });
 }
 
-incidentsQueue.process('*', (job) => addToBatch(job));
+// Concurrency = MAX_BATCH so up to MAX_BATCH jobs can buffer between flushes.
+incidentsQueue.process('*', MAX_BATCH, (job) => addToBatch(job));
 
 incidentsQueue.on('completed', (job, result) => {
     console.log(`Incident job ${job.id} completed with result:`, result);
