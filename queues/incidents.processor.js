@@ -10,82 +10,130 @@ const INCIDENT_RANGE = 'Incident Import!A2:E';
 const INCIDENT_ID_COL = 4; // column E within the A:E range (0-indexed)
 const DATA_START_ROW = 2;
 
-async function processIncidentToSheets(payload) {
-    const incidentId = String(payload.incidentId ?? '').trim();
+// Batch processing: instead of a read + write per incident, accumulate jobs and
+// do ONE read + one batchUpdate (updates) + one append (new rows) per batch.
+const BATCH_SIZE = 10;
+const BATCH_TIMEOUT_MS = 1000;
 
-    if (!incidentId) {
-        throw new Error('incidentId is required');
+/**
+ * Upsert a batch of incident payloads into the sheet.
+ * Dedupes by incidentId (latest wins), reads existing rows once, applies updates
+ * in a single batchUpdate and new rows in a single multi-row append.
+ */
+async function processIncidentBatch(payloads) {
+    const byId = new Map();
+    for (const p of payloads) {
+        const id = String(p.incidentId ?? '').trim();
+        if (id) byId.set(id, p);
     }
+    const unique = Array.from(byId.values());
+
+    if (!unique.length) return { updated: 0, appended: 0 };
 
     const sheet = await GoogleSheet();
 
-    const newRow = [
-        payload.reportDate,
-        payload.type,
-        payload.reportedBy,
-        payload.notes || '',
-        incidentId,
-    ];
-
-    // Find an existing row for this incident so a retry updates it instead of
-    // appending a duplicate.
     const result = await sheet.spreadsheets.values.get({
         spreadsheetId: USERS_SPREADSHEET,
         range: INCIDENT_RANGE,
     });
-
     const rows = result.data.values || [];
-    const existingIndex = rows.findIndex(
-        (row) => String(row[INCIDENT_ID_COL] ?? '').trim() === incidentId
-    );
 
-    if (existingIndex !== -1) {
-        const sheetRow = DATA_START_ROW + existingIndex;
-        console.log(`Updating existing incident ${incidentId} at row ${sheetRow}`);
-
-        await sheet.spreadsheets.values.update({
-            spreadsheetId: USERS_SPREADSHEET,
-            range: `Incident Import!A${sheetRow}:E${sheetRow}`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values: [newRow] },
-        });
-
-        return { action: 'updated', row: sheetRow, incidentId };
-    }
-
-    console.log(`Appending new incident ${incidentId}`);
-
-    await sheet.spreadsheets.values.append({
-        spreadsheetId: USERS_SPREADSHEET,
-        range: 'Incident Import!A2:E',
-        valueInputOption: 'USER_ENTERED',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: {
-            values: [newRow],
-        },
+    const idToRow = new Map();
+    rows.forEach((row, i) => {
+        const id = String(row[INCIDENT_ID_COL] ?? '').trim();
+        if (id) idToRow.set(id, DATA_START_ROW + i);
     });
 
-    return { action: 'appended', incidentId };
+    const updates = [];
+    const toAppend = [];
+
+    for (const p of unique) {
+        const incidentId = String(p.incidentId ?? '').trim();
+        const newRow = [
+            p.reportDate,
+            p.type,
+            p.reportedBy,
+            p.notes || '',
+            incidentId,
+        ];
+
+        if (idToRow.has(incidentId)) {
+            const sheetRow = idToRow.get(incidentId);
+            updates.push({ range: `Incident Import!A${sheetRow}:E${sheetRow}`, values: [newRow] });
+        } else {
+            toAppend.push(newRow);
+            idToRow.set(incidentId, -1); // guard against duplicate appends in the batch
+        }
+    }
+
+    if (updates.length) {
+        await sheet.spreadsheets.values.batchUpdate({
+            spreadsheetId: USERS_SPREADSHEET,
+            requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+        });
+    }
+
+    if (toAppend.length) {
+        await sheet.spreadsheets.values.append({
+            spreadsheetId: USERS_SPREADSHEET,
+            range: 'Incident Import!A2:E',
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            requestBody: { values: toAppend },
+        });
+    }
+
+    return { updated: updates.length, appended: toAppend.length };
 }
 
-incidentsQueue.process('*', async (job) => {
-    const { updateId, payload } = job.data;
+// --- job batching (mirrors the users processor) ---
 
-    console.log(`Processing incident job ${job.name}:${job.id} for update ${updateId}`);
-    IncidentUpdate.setProcessing(updateId);
+let batchBuffer = [];
+let batchTimer = null;
 
-    try {
-        await processIncidentToSheets(payload);
-        IncidentUpdate.setCompleted(updateId);
-        console.log(`Incident job ${job.id} completed successfully`);
-        return { success: true, updateId };
-    } catch (error) {
-        console.error(`Incident job ${job.id} failed:`, error.message);
-        console.error(`Full error:`, error);
-        IncidentUpdate.setFailed(updateId, error.message);
-        throw error;
+function flushBatch() {
+    if (batchTimer) {
+        clearTimeout(batchTimer);
+        batchTimer = null;
     }
-});
+    if (!batchBuffer.length) return;
+
+    const entries = batchBuffer.splice(0, batchBuffer.length);
+    console.log(`Flushing batch of ${entries.length} incident job(s)`);
+
+    for (const { job } of entries) {
+        IncidentUpdate.setProcessing(job.data.updateId);
+    }
+
+    processIncidentBatch(entries.map((e) => e.job.data.payload))
+        .then((res) => {
+            for (const { job, resolve } of entries) {
+                IncidentUpdate.setCompleted(job.data.updateId);
+                resolve({ success: true, updateId: job.data.updateId, ...res });
+            }
+        })
+        .catch((error) => {
+            for (const { job, reject } of entries) {
+                IncidentUpdate.setFailed(job.data.updateId, error.message);
+                reject(error);
+            }
+        });
+}
+
+function addToBatch(job) {
+    return new Promise((resolve, reject) => {
+        batchBuffer.push({ job, resolve, reject });
+
+        if (batchBuffer.length >= BATCH_SIZE) {
+            flushBatch();
+        } else if (!batchTimer) {
+            batchTimer = setTimeout(flushBatch, BATCH_TIMEOUT_MS);
+            if (typeof batchTimer.unref === 'function') batchTimer.unref();
+        }
+    });
+}
+
+incidentsQueue.process('*', (job) => addToBatch(job));
 
 incidentsQueue.on('completed', (job, result) => {
     console.log(`Incident job ${job.id} completed with result:`, result);
@@ -112,4 +160,5 @@ incidentsQueue.on('failed', (job, err) => {
     });
 });
 
-module.exports = { incidentsQueue, processIncidentToSheets };
+module.exports = { incidentsQueue, processIncidentBatch };
+
