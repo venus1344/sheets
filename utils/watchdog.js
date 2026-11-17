@@ -17,11 +17,20 @@ const alerted = new Set();
 /**
  * Check every monitored DAG once. A DAG whose last successful run is older than
  * its window is alerted once, then not re-alerted until it recovers.
+ *
+ * Grace mode: a DAG that has never reported a run (empty dag_runs for its id)
+ * is skipped entirely, so a fresh deployment does not fire a burst of "missed"
+ * alerts before anything has checked in.
  */
 function checkOnce() {
     const now = Date.now();
 
     for (const { dagId, windowMs } of MONITORED_DAGS) {
+        if (!DagRun.latest(dagId)) {
+            alerted.delete(dagId);
+            continue;
+        }
+
         const last = DagRun.lastSucceeded(dagId);
         const lastRunAt = last ? last.finished_at : null;
         const age = lastRunAt ? now - Date.parse(lastRunAt) : Infinity;
