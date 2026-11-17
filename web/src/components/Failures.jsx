@@ -10,6 +10,7 @@ export default function Failures() {
     const [total, setTotal] = useState(0);
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+    const [busyId, setBusyId] = useState(null);
 
     const load = async (t, p) => {
         setError('');
@@ -33,6 +34,7 @@ export default function Failures() {
     const retry = async (updateId) => {
         setError('');
         setMessage('');
+        setBusyId(updateId);
         try {
             const res = await api.retry(type, updateId);
             setMessage(res.escalated ? 'Escalated to support.' : 'Retry queued.');
@@ -47,6 +49,8 @@ export default function Failures() {
             }
         } catch (e) {
             setError(e.message);
+        } finally {
+            setBusyId(null);
         }
     };
 
@@ -69,8 +73,8 @@ export default function Failures() {
                 <button className={`tab ${type === 'users' ? 'active' : ''}`} onClick={() => switchType('users')}>Users</button>
                 <button className={`tab ${type === 'incidents' ? 'active' : ''}`} onClick={() => switchType('incidents')}>Incidents</button>
             </div>
-            {error && <div className="error">{error}</div>}
-            {message && <div className="ok">{message}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
+            {message && <div className="ok" role="status">{message}</div>}
             <table className="table">
                 <thead>
                     <tr><th>Date</th><th>Record</th><th>Error</th><th>Retries</th><th>State</th><th>Failed</th><th></th></tr>
@@ -90,7 +94,9 @@ export default function Failures() {
                             <td className="small muted">{r.created_at}</td>
                             <td>
                                 {!r.escalated && (
-                                    <button className="btn" onClick={() => retry(r.id)}>Retry</button>
+                                    <button className="btn secondary" onClick={() => retry(r.id)} disabled={busyId === r.id}>
+                                        {busyId === r.id ? 'Retrying…' : 'Retry'}
+                                    </button>
                                 )}
                             </td>
                         </tr>
@@ -99,9 +105,9 @@ export default function Failures() {
                 </tbody>
             </table>
             <div className="pager">
-                <button className="btn" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>Previous</button>
+                <button className="btn secondary" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>Previous</button>
                 <span className="muted small">{total === 0 ? 'Nothing to show' : `Showing ${start}–${end} of ${total}`}</span>
-                <button className="btn" onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page >= lastPage}>Next</button>
+                <button className="btn secondary" onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page >= lastPage}>Next</button>
             </div>
         </div>
     );

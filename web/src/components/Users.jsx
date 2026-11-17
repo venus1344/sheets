@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PasswordInput from './PasswordInput.jsx';
 
 export default function Users() {
     const [users, setUsers] = useState([]);
@@ -8,6 +9,7 @@ export default function Users() {
     const [role, setRole] = useState('office_admin');
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+    const [busy, setBusy] = useState(false);
 
     const load = async () => {
         try {
@@ -24,6 +26,7 @@ export default function Users() {
         e.preventDefault();
         setError('');
         setMessage('');
+        setBusy(true);
         try {
             await api.createUser(email.trim(), password, role);
             setMessage(`Added ${email.trim()}`);
@@ -33,6 +36,8 @@ export default function Users() {
             await load();
         } catch (err) {
             setError(err.message);
+        } finally {
+            setBusy(false);
         }
     };
 
@@ -45,9 +50,15 @@ export default function Users() {
                     <label>Email
                         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
                     </label>
-                    <label>Password
-                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
-                    </label>
+                    <PasswordInput
+                        id="new-user-password"
+                        label="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                    />
                     <label>Role
                         <select value={role} onChange={(e) => setRole(e.target.value)}>
                             <option value="office_admin">Office admin</option>
@@ -55,9 +66,10 @@ export default function Users() {
                         </select>
                     </label>
                 </div>
-                {error && <div className="error">{error}</div>}
-                {message && <div className="ok">{message}</div>}
-                <button className="btn" type="submit">Add user</button>
+                <p className="hint" style={{ margin: '0 0 12px' }}>Password must be at least 8 characters. Role decides what this person can do: office admins retry failures, technical users also manage accounts.</p>
+                {error && <div className="error" role="alert">{error}</div>}
+                {message && <div className="ok" role="status">{message}</div>}
+                <button className="btn" type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add user'}</button>
             </form>
 
             <table className="table">

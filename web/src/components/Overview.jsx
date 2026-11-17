@@ -11,12 +11,25 @@ const successRate = (completed, failed) => {
 export default function Overview() {
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
+    const [loadedAt, setLoadedAt] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
-        api.overview().then(setData).catch((e) => setError(e.message));
-    }, []);
+    const load = async () => {
+        setRefreshing(true);
+        setError('');
+        try {
+            setData(await api.overview());
+            setLoadedAt(new Date());
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
-    if (error) return <div className="error">{error}</div>;
+    useEffect(() => { load(); }, []);
+
+    if (error && !data) return <div className="error" role="alert">{error}</div>;
     if (!data) return <div className="muted">Loading…</div>;
 
     const latestByDag = {};
@@ -26,7 +39,18 @@ export default function Overview() {
 
     return (
         <div>
-            <h2>Overview</h2>
+            <div className="row-between" style={{ marginBottom: 4 }}>
+                <h2>Overview</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span className="muted small">
+                        {loadedAt ? `Updated ${loadedAt.toLocaleTimeString()}` : ''}
+                    </span>
+                    <button className="btn secondary" onClick={load} disabled={refreshing}>
+                        {refreshing ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                </div>
+            </div>
+            {error && <div className="error" role="alert">{error}</div>}
 
             <h3>DAGs</h3>
             <div className="grid">

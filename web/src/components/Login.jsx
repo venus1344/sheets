@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api.js';
+import PasswordInput from './PasswordInput.jsx';
 
 export default function Login({ onLogin }) {
     const [email, setEmail] = useState('');
@@ -27,12 +28,17 @@ export default function Login({ onLogin }) {
                 <h1>Sheets Sync</h1>
                 <p className="muted">Monitor TAI ↔ Google Sheets sync</p>
                 <label>Email
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus autoComplete="username" />
                 </label>
-                <label>Password
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                </label>
-                {error && <div className="error">{error}</div>}
+                <PasswordInput
+                    id="login-password"
+                    label="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                />
+                {error && <div className="error" role="alert">{error}</div>}
                 <button className="btn" type="submit" disabled={busy}>
                     {busy ? 'Signing in…' : 'Sign in'}
                 </button>
