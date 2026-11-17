@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import StatusBadge from './StatusBadge.jsx';
+import { friendlyDag } from '../format.js';
 
 export default function DagRuns() {
     const [dags, setDags] = useState([]);
@@ -21,7 +22,7 @@ export default function DagRuns() {
                 <tbody>
                     {dags.map((r) => (
                         <tr key={r.id}>
-                            <td>{r.dag_id}</td>
+                            <td>{friendlyDag(r.dag_id)}</td>
                             <td className="small mono">{r.run_id}</td>
                             <td><StatusBadge status={r.status} /></td>
                             <td className="small">{r.finished_at || '—'}</td>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import StatusBadge from './StatusBadge.jsx';
+import { friendlyDag, friendlyAlert, friendlyType } from '../format.js';
 
 const successRate = (completed, failed) => {
     const total = completed + failed;
@@ -32,7 +33,7 @@ export default function Overview() {
                 {Object.keys(latestByDag).length === 0 && <span className="muted">No DAG runs yet.</span>}
                 {Object.entries(latestByDag).map(([dagId, run]) => (
                     <div className="card" key={dagId}>
-                        <div className="card-title">{dagId}</div>
+                        <div className="card-title">{friendlyDag(dagId)}</div>
                         <div className="row-between">
                             <StatusBadge status={run.status} />
                             <span className="muted small">
@@ -66,7 +67,7 @@ export default function Overview() {
                     const r = data.reconciliation[type];
                     return (
                         <div className="card" key={type}>
-                            <div className="card-title">Reconciliation · {type}</div>
+                            <div className="card-title">Reconciliation · {friendlyType(type)}</div>
                             {r ? (
                                 <>
                                     <span className={`badge ${r.inSync ? 'green' : 'red'}`}>
@@ -93,7 +94,7 @@ export default function Overview() {
                 <ul className="list">
                     {data.alerts.map((a) => (
                         <li key={a.id}>
-                            <span className="badge gray">{a.alert_type}</span>
+                            <span className="badge gray">{friendlyAlert(a.alert_type)}</span>
                             <span>{a.subject}</span>
                             <span className="muted small">{a.created_at}</span>
                         </li>

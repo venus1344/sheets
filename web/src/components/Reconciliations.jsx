@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import StatusBadge from './StatusBadge.jsx';
+import { friendlyType } from '../format.js';
 
 export default function Reconciliations() {
     const [rows, setRows] = useState([]);
@@ -23,7 +24,7 @@ export default function Reconciliations() {
                         const s = r.stats_json ? JSON.parse(r.stats_json) : null;
                         return (
                             <tr key={r.id}>
-                                <td>{r.type}</td>
+                                <td>{friendlyType(r.type)}</td>
                                 <td><StatusBadge status={r.status} /></td>
                                 <td className="small">{s ? s.checked : '—'}</td>
                                 <td className="small">{s ? s.added : '—'}</td>
