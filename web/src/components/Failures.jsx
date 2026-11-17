@@ -36,6 +36,10 @@ export default function Failures() {
         ? (row.payload.email || row.id)
         : (row.payload.incidentId || row.id));
 
+    const recordDate = (row) => (type === 'users'
+        ? (row.payload.date || '—')
+        : (row.payload.reportDate || '—'));
+
     return (
         <div>
             <h2>Failures</h2>
@@ -47,11 +51,12 @@ export default function Failures() {
             {message && <div className="ok">{message}</div>}
             <table className="table">
                 <thead>
-                    <tr><th>Record</th><th>Error</th><th>Retries</th><th>State</th><th></th></tr>
+                    <tr><th>Date</th><th>Record</th><th>Error</th><th>Retries</th><th>State</th><th>Failed</th><th></th></tr>
                 </thead>
                 <tbody>
                     {rows.map((r) => (
                         <tr key={r.id}>
+                            <td className="small">{recordDate(r)}</td>
                             <td className="small">{recordLabel(r)}</td>
                             <td className="small muted">{r.error_message}</td>
                             <td className="small">{r.retry_count}/{r.max_retries}</td>
@@ -60,6 +65,7 @@ export default function Failures() {
                                     ? <span className="badge red">Escalated</span>
                                     : <span className="badge amber">Failed</span>}
                             </td>
+                            <td className="small muted">{r.created_at}</td>
                             <td>
                                 {!r.escalated && (
                                     <button className="btn" onClick={() => retry(r.id)}>Retry</button>
@@ -67,7 +73,7 @@ export default function Failures() {
                             </td>
                         </tr>
                     ))}
-                    {rows.length === 0 && <tr><td colSpan={5} className="muted">No failed updates.</td></tr>}
+                    {rows.length === 0 && <tr><td colSpan={7} className="muted">No failed updates.</td></tr>}
                 </tbody>
             </table>
         </div>
