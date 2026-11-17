@@ -18,6 +18,25 @@ function inSync(recon) {
     return Boolean(recon && recon.status === 'completed' && (parseStats(recon)?.deleted ?? 0) === 0);
 }
 
+/**
+ * Shared guards for lockout-prone account changes: never let an admin delete
+ * their own access, and never delete the last non-deleted technical account
+ * (that would leave nobody able to manage users).
+ *
+ * Responds with the error and returns false when the change must not happen.
+ */
+function guardUserChange(req, res, target) {
+    if (target.id === req.session.user.id) {
+        res.status(400).json({ error: 'You cannot delete your own account' });
+        return false;
+    }
+    if (target.role === 'technical' && !target.deleted_at && User.countActiveTechnical() <= 1) {
+        res.status(409).json({ error: 'This is the only technical admin. Add another technical admin first.' });
+        return false;
+    }
+    return true;
+}
+
 module.exports = {
     async login(req, res) {
         const { email, password } = req.body || {};
@@ -29,6 +48,9 @@ module.exports = {
         const user = User.findByEmail(email);
         if (!user || !bcrypt.compareSync(password, user.password_hash)) {
             return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        if (user.deleted_at) {
+            return res.status(403).json({ error: 'This account has been deleted. Ask a technical admin to restore it.' });
         }
 
         req.session.user = { id: user.id, email: user.email, role: user.role };
@@ -127,6 +149,27 @@ module.exports = {
         const created = User.create({ email: normalizedEmail, passwordHash, role });
 
         return res.status(201).json({ user: created });
+    },
+
+    /**
+     * Soft delete / restore an account. Deleting stamps `deleted_at`, revoking
+     * dashboard access immediately while keeping the row and its history.
+     */
+    setUserDeleted(req, res) {
+        const { deleted } = req.body || {};
+        if (typeof deleted !== 'boolean') {
+            return res.status(400).json({ error: 'deleted must be true or false' });
+        }
+
+        const target = User.findById(req.params.id);
+        if (!target) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (deleted && !guardUserChange(req, res, target)) {
+            return undefined;
+        }
+
+        return res.json({ user: User.setDeleted(target.id, deleted) });
     },
 
     async retry(req, res) {

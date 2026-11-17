@@ -1,5 +1,6 @@
 const session = require('express-session');
 const db = require('../config/database');
+const User = require('../models/user');
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
@@ -120,14 +121,31 @@ if (typeof cleanupTimer.unref === 'function') {
 }
 
 /**
- * Require an authenticated session. Rejects anonymous requests with 401.
+ * Require an authenticated session. Rejects anonymous requests with 401, and
+ * also rejects sessions whose account was soft-deleted, so access is revoked
+ * immediately rather than at cookie expiry.
  */
 function requireAuth(req, res, next) {
-    if (req.session && req.session.user) {
-        return next();
+    const sessionUser = req.session && req.session.user;
+
+    if (!sessionUser) {
+        return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    return res.status(401).json({ error: 'Not authenticated' });
+    const user = sessionUser.id ? User.findById(sessionUser.id) : null;
+    if (!user || user.deleted_at) {
+        return req.session.destroy(() => {
+            res.clearCookie('sheets.sid');
+            res.status(401).json({ error: 'Your account is no longer active' });
+        });
+    }
+
+    // Keep the session in step with role changes made by another admin.
+    if (user.role !== sessionUser.role) {
+        req.session.user = { ...sessionUser, role: user.role };
+    }
+
+    return next();
 }
 
 module.exports = { sessionMiddleware, requireAuth, SqliteSessionStore };

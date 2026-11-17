@@ -32,4 +32,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password, role }),
     }),
+    setUserDeleted: (id, deleted) => request(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ deleted }),
+    }),
 };

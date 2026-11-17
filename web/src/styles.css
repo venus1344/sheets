@@ -137,6 +137,7 @@ h3 {
     border-radius: 999px;
     font-size: 12px;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .badge.green {
@@ -262,6 +263,125 @@ button.btn.secondary {
 button.btn.secondary:hover {
     opacity: 1;
     background: var(--bg);
+}
+
+/* Destructive action: outlined so it is unmistakable but not the loudest thing on screen. */
+button.btn.danger {
+    background: var(--panel);
+    color: var(--red);
+    border-color: #fecaca;
+}
+
+button.btn.danger:hover {
+    opacity: 1;
+    background: #fef2f2;
+}
+
+/* Used for the final destructive step inside a confirm dialog. */
+button.btn.danger-solid {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+}
+
+/* Icon-only row actions: still a 34px target, with label + tooltip for clarity. */
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.icon-btn:hover {
+    color: var(--text);
+    background: var(--bg);
+}
+
+.icon-btn.danger:hover {
+    color: var(--red);
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.icon-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.icon-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Floating confirm dialog. */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(23, 23, 23, 0.38);
+}
+
+.modal {
+    width: 100%;
+    max-width: 400px;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.modal-title {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: -0.01em;
+    color: var(--text);
+}
+
+.modal-message {
+    margin: 0 0 20px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.table td.actions {
+    text-align: right;
+}
+
+.row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Deactivated accounts stay visible but visibly muted. */
+.row-inactive td {
+    opacity: 0.55;
+}
+
+.row-inactive td.actions,
+.row-inactive .row-actions {
+    opacity: 1;
 }
 
 button.link {
