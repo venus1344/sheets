@@ -21,7 +21,7 @@ export const api = {
     me: () => request('/api/admin/auth/me'),
     overview: () => request('/api/admin/overview'),
     dags: () => request('/api/admin/dags'),
-    updates: (type, status) => request(`/api/admin/updates?type=${type}${status ? `&status=${status}` : ''}`),
+    updates: (type, status, limit = 50, offset = 0) => request(`/api/admin/updates?type=${type}${status ? `&status=${status}` : ''}&limit=${limit}&offset=${offset}`),
     reconciliations: () => request('/api/admin/reconciliations'),
     retry: (type, updateId) => request('/api/admin/retry', {
         method: 'POST',

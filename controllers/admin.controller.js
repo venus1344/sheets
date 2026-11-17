@@ -77,7 +77,13 @@ module.exports = {
         const offset = parseInt(req.query.offset, 10) || 0;
 
         const Model = type === 'incidents' ? IncidentUpdate : UserUpdate;
-        return res.json({ type, count: Model.list({ status, limit, offset }).length, updates: Model.list({ status, limit, offset }) });
+        return res.json({
+            type,
+            total: Model.count({ status }),
+            limit,
+            offset,
+            updates: Model.list({ status, limit, offset }),
+        });
     },
 
     reconciliations(req, res) {

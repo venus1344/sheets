@@ -93,6 +93,12 @@ const UserUpdate = {
         return rows.map(row => ({ ...row, payload: JSON.parse(row.payload) }));
     },
 
+    count({ status = null } = {}) {
+        const where = status ? 'WHERE status = ?' : '';
+        const params = status ? [status] : [];
+        return db.prepare(`SELECT COUNT(*) AS n FROM user_updates ${where}`).get(...params).n;
+    },
+
     stats() {
         return db.prepare(`
             SELECT
