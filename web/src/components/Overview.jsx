@@ -8,6 +8,21 @@ const successRate = (completed, failed) => {
     return total === 0 ? null : Math.round((completed / total) * 100);
 };
 
+/**
+ * The reconciliation writes its fixes in the same run, so these counts describe
+ * what was repaired — not something still outstanding.
+ */
+const describeRepairs = (stats) => {
+    if (!stats) return 'No counts recorded';
+
+    const parts = [];
+    if (stats.added) parts.push(`${stats.added} added`);
+    if (stats.updated) parts.push(`${stats.updated} updated`);
+    if (stats.deleted) parts.push(`${stats.deleted} removed`);
+
+    return parts.length ? `Repaired: ${parts.join(' · ')}` : 'No changes needed';
+};
+
 export default function Overview() {
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
@@ -95,13 +110,12 @@ export default function Overview() {
                             {r ? (
                                 <>
                                     <span className={`badge ${r.inSync ? 'green' : 'red'}`}>
-                                        {r.inSync ? 'In sync' : 'Out of sync'}
+                                        {r.inSync ? 'In sync' : 'Sync failed'}
                                     </span>
-                                    {r.stats && (
-                                        <div className="muted small">
-                                            +{r.stats.added} added · ~{r.stats.updated} updated · −{r.stats.deleted} deleted
-                                        </div>
-                                    )}
+                                    <div className="muted small">
+                                        {r.inSync ? describeRepairs(r.stats) : (r.error_message || 'The last run did not finish.')}
+                                    </div>
+                                    <div className="muted small">Checked {r.stats ? r.stats.checked : '—'} records</div>
                                 </>
                             ) : (
                                 <span className="muted">Not run yet</span>

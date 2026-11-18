@@ -14,8 +14,23 @@ const TECH_ALERT_EMAIL = process.env.TECH_ALERT_EMAIL;
 
 const parseStats = (row) => (row && row.stats_json ? JSON.parse(row.stats_json) : null);
 
-function inSync(recon) {
-    return Boolean(recon && recon.status === 'completed' && (parseStats(recon)?.deleted ?? 0) === 0);
+/**
+ * Summarise the latest reconciliation for the overview.
+ *
+ * A completed run has already written its additions, updates and deletions to
+ * the sheet, so the sheet matches the source once it finishes — the counts
+ * describe what was repaired, not what is still wrong. Only a failed run leaves
+ * the two out of sync.
+ */
+function reconciliationSummary(recon) {
+    if (!recon) return null;
+
+    const stats = parseStats(recon);
+    const changed = stats
+        ? (stats.added || 0) + (stats.updated || 0) + (stats.deleted || 0)
+        : 0;
+
+    return { ...recon, stats, changed, inSync: recon.status === 'completed' };
 }
 
 /**
@@ -80,8 +95,8 @@ module.exports = {
             },
             dags: DagRun.recent(10),
             reconciliation: {
-                users: userRecon ? { ...userRecon, stats: parseStats(userRecon), inSync: inSync(userRecon) } : null,
-                incidents: incidentRecon ? { ...incidentRecon, stats: parseStats(incidentRecon), inSync: inSync(incidentRecon) } : null,
+                users: reconciliationSummary(userRecon),
+                incidents: reconciliationSummary(incidentRecon),
             },
             alerts: Alert.recent(5),
         });

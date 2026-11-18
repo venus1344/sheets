@@ -132,13 +132,16 @@ async function runReconciliation(req, res, {
             details: trimDetails(diff.details),
         });
 
-        if (stats.deleted > 0) {
+        // Routine cleanups (a few stale rows) are the job working as intended, so
+        // only a large deletion — the shape of a bad upstream query — is escalated.
+        const massDeletion = stats.deleted > Math.max(10, Math.round(stats.checked * 0.1));
+        if (massDeletion) {
             notifyReconciliationMismatch({ type, stats }).catch(() => { });
             Alert.create({
                 alertType: 'reconciliation_mismatch',
                 channel: 'email+slack',
                 recipient: process.env.TECH_ALERT_EMAIL,
-                subject: `Data out of sync (${type})`,
+                subject: `Large deletion in sheet (${type}): ${stats.deleted} rows removed`,
             });
         }
 
