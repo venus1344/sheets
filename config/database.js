@@ -109,6 +109,9 @@ ensureColumn('incident_updates', 'escalated', 'INTEGER DEFAULT 0');
 // and keeps its row (and audit trail) until restored or purged.
 ensureColumn('users', 'deleted_at', 'DATETIME');
 
+// Per-record change detail for reconciliation runs (updated / deleted rows).
+ensureColumn('reconciliations', 'details_json', 'TEXT');
+
 // Indexes to keep COUNT / paging fast on the large update tables.
 db.exec('CREATE INDEX IF NOT EXISTS idx_user_updates_status ON user_updates(status)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_incident_updates_status ON incident_updates(status)');

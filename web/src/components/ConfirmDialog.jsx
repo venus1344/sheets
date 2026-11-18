@@ -1,11 +1,10 @@
-import { useEffect, useId, useRef } from 'react';
+import { useRef } from 'react';
+import Modal from './Modal.jsx';
 
 /**
- * Floating confirmation dialog.
- *
- * Rendered above the page with a dimmed backdrop. Cancel is focused first (the
- * safe default), Escape and a backdrop click both dismiss it, and focus returns
- * to the button that opened it.
+ * Destructive confirmation, built on the shared Modal so both dialogs look and
+ * behave the same. Cancel is focused first (the safe default), and Escape or a
+ * backdrop click dismisses.
  */
 export default function ConfirmDialog({
     title,
@@ -17,40 +16,16 @@ export default function ConfirmDialog({
     busy = false,
     danger = false,
 }) {
-    const titleId = useId();
-    const messageId = useId();
     const cancelRef = useRef(null);
-    const previousFocus = useRef(null);
-
-    useEffect(() => {
-        previousFocus.current = document.activeElement;
-        cancelRef.current?.focus();
-
-        const onKey = (e) => {
-            if (e.key === 'Escape') onCancel();
-        };
-        document.addEventListener('keydown', onKey);
-
-        return () => {
-            document.removeEventListener('keydown', onKey);
-            // Put focus back where the user came from.
-            if (previousFocus.current && typeof previousFocus.current.focus === 'function') {
-                previousFocus.current.focus();
-            }
-        };
-    }, [onCancel]);
 
     return (
-        <div
-            className="modal-backdrop"
-            onMouseDown={(e) => {
-                if (e.target === e.currentTarget) onCancel();
-            }}
-        >
-            <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}>
-                <h3 className="modal-title" id={titleId}>{title}</h3>
-                <p className="modal-message" id={messageId}>{message}</p>
-                <div className="modal-actions">
+        <Modal
+            title={title}
+            subtitle={message}
+            onClose={onCancel}
+            initialFocusRef={cancelRef}
+            footer={
+                <>
                     <button className="btn secondary" ref={cancelRef} onClick={onCancel} disabled={busy}>
                         {cancelLabel}
                     </button>
@@ -61,8 +36,8 @@ export default function ConfirmDialog({
                     >
                         {busy ? 'Working…' : confirmLabel}
                     </button>
-                </div>
-            </div>
-        </div>
+                </>
+            }
+        />
     );
 }

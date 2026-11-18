@@ -8,7 +8,7 @@
     "start": "node app.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "node --test"
+    "test": "node --test --test-concurrency=1"
   },
   "keywords": [
     "sheets",

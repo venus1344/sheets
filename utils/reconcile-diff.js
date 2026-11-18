@@ -1,5 +1,23 @@
 const USERS_DEFAULT_DEPARTMENT = 'Antipoaching';
 
+const text = (value) => String(value ?? '');
+
+const userSnapshot = (row, email) => ({
+    name: text(row[0]),
+    department: text(row[1]),
+    value: text(row[2]),
+    date: text(row[3]),
+    email,
+});
+
+const incidentSnapshot = (row, incidentId) => ({
+    reportDate: text(row[0]),
+    type: text(row[1]),
+    reportedBy: text(row[2]),
+    notes: text(row[3]),
+    incidentId,
+});
+
 /**
  * Compute the difference between the current sheet rows and the authoritative
  * TAI data set. Pure functions — no Google API access — so they are unit-testable.
@@ -8,7 +26,7 @@ const USERS_DEFAULT_DEPARTMENT = 'Antipoaching';
  *   users:     [Name, Department, Value, Date, Email]
  *   incidents: [Report Date, Type, Reported By, Notes, Incident ID]
  *
- * @returns {{stats: {checked: number, added: number, updated: number, deleted: number}, updates: Array, toAppend: Array, rowsToDelete: number[]}}
+ * @returns {{stats: {checked: number, added: number, updated: number, deleted: number}, updates: Array, toAppend: Array, rowsToDelete: number[], details: {updated: Array, deleted: Array}}}
  */
 function computeUsersDiff(rows, users) {
     const emailToIndex = new Map();
@@ -26,24 +44,35 @@ function computeUsersDiff(rows, users) {
     const updates = [];
     const toAppend = [];
     const rowsToDelete = [];
+    const updateDetails = [];
+    const deleteDetails = [];
     let added = 0;
     let updated = 0;
     let deleted = 0;
 
     for (const [email, index] of emailToIndex) {
         const tai = tais.get(email);
+        const row = rows[index] || [];
+
         if (!tai) {
             rowsToDelete.push(index);
+            deleteDetails.push({ key: email, record: userSnapshot(row, email) });
             deleted += 1;
             continue;
         }
 
-        const row = rows[index];
-        if (
-            String(row[0] ?? '') !== String(tai.name ?? '') ||
-            Number(row[2]) !== Number(tai.value) ||
-            String(row[3] ?? '') !== String(tai.date ?? '')
-        ) {
+        const changes = [];
+        if (String(row[0] ?? '') !== String(tai.name ?? '')) {
+            changes.push({ field: 'Name', from: text(row[0]), to: text(tai.name) });
+        }
+        if (Number(row[2]) !== Number(tai.value)) {
+            changes.push({ field: 'Value', from: text(row[2]), to: text(tai.value) });
+        }
+        if (String(row[3] ?? '') !== String(tai.date ?? '')) {
+            changes.push({ field: 'Date', from: text(row[3]), to: text(tai.date) });
+        }
+
+        if (changes.length) {
             updates.push({
                 index,
                 values: [
@@ -54,6 +83,7 @@ function computeUsersDiff(rows, users) {
                     email,
                 ],
             });
+            updateDetails.push({ key: email, changes });
             updated += 1;
         }
     }
@@ -76,6 +106,7 @@ function computeUsersDiff(rows, users) {
         updates,
         toAppend,
         rowsToDelete,
+        details: { updated: updateDetails, deleted: deleteDetails },
     };
 }
 
@@ -95,19 +126,23 @@ function computeIncidentsDiff(rows, incidents) {
     const updates = [];
     const toAppend = [];
     const rowsToDelete = [];
+    const updateDetails = [];
+    const deleteDetails = [];
     let added = 0;
     let updated = 0;
     let deleted = 0;
 
     for (const [id, index] of idToIndex) {
         const tai = tais.get(id);
+        const row = rows[index] || [];
+
         if (!tai) {
             rowsToDelete.push(index);
+            deleteDetails.push({ key: id, record: incidentSnapshot(row, id) });
             deleted += 1;
             continue;
         }
 
-        const row = rows[index];
         const newRow = [
             String(tai.reportDate ?? ''),
             String(tai.type ?? ''),
@@ -118,7 +153,15 @@ function computeIncidentsDiff(rows, incidents) {
 
         const unchanged = newRow.every((value, col) => String(row[col] ?? '').trim() === value);
         if (!unchanged) {
+            const changes = [];
+            ['Report Date', 'Type', 'Reported By', 'Notes'].forEach((field, col) => {
+                if (String(row[col] ?? '').trim() !== newRow[col]) {
+                    changes.push({ field, from: text(row[col]), to: newRow[col] });
+                }
+            });
+
             updates.push({ index, values: newRow });
+            updateDetails.push({ key: id, changes });
             updated += 1;
         }
     }
@@ -141,6 +184,7 @@ function computeIncidentsDiff(rows, incidents) {
         updates,
         toAppend,
         rowsToDelete,
+        details: { updated: updateDetails, deleted: deleteDetails },
     };
 }
 

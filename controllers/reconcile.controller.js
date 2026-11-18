@@ -19,6 +19,25 @@ const INCIDENTS_APPEND_RANGE = 'Incident Import!A2:E';
 const userRowRange = (row) => `Data Import!B${row}:F${row}`;
 const incidentRowRange = (row) => `Incident Import!A${row}:E${row}`;
 
+// Cap how many per-record changes are stored per run so a huge drift cannot
+// bloat the row; totals are kept so the UI can say "showing first N of M".
+const MAX_DETAILS = 200;
+
+function trimDetails(details) {
+    if (!details) return null;
+
+    const updated = details.updated || [];
+    const deleted = details.deleted || [];
+
+    return {
+        updated: updated.slice(0, MAX_DETAILS),
+        updatedTotal: updated.length,
+        deleted: deleted.slice(0, MAX_DETAILS),
+        deletedTotal: deleted.length,
+        limit: MAX_DETAILS,
+    };
+}
+
 async function getSheetId(sheet, title) {
     const res = await sheet.spreadsheets.get({
         spreadsheetId: USERS_SPREADSHEET,
@@ -105,7 +124,13 @@ async function runReconciliation(req, res, {
         const diff = computeDiff(rows, items);
         const stats = await applyDiff(sheet, { sheetTitle, dataStartRow, appendRange, rowRangeFn, diff });
 
-        Reconciliation.create({ runId, type, status: 'completed', stats });
+        Reconciliation.create({
+            runId,
+            type,
+            status: 'completed',
+            stats,
+            details: trimDetails(diff.details),
+        });
 
         if (stats.deleted > 0) {
             notifyReconciliationMismatch({ type, stats }).catch(() => { });

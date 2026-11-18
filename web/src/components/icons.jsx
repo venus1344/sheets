@@ -33,3 +33,21 @@ export function RestoreIcon() {
         </svg>
     );
 }
+
+export function CloseIcon() {
+    return (
+        <svg {...base}>
+            <path d="M6 6l12 12" />
+            <path d="M18 6L6 18" />
+        </svg>
+    );
+}
+
+export function EyeIcon() {
+    return (
+        <svg {...base}>
+            <path d="M1.8 12S5.5 5 12 5s10.2 7 10.2 7-3.7 7-10.2 7S1.8 12 1.8 12Z" />
+            <circle cx="12" cy="12" r="3" />
+        </svg>
+    );
+}

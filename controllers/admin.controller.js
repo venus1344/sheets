@@ -110,7 +110,15 @@ module.exports = {
 
     reconciliations(req, res) {
         const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
-        return res.json({ reconciliations: Reconciliation.recent(limit) });
+
+        // Parse once here so the SPA never has to know about the JSON columns.
+        const rows = Reconciliation.recent(limit).map(({ stats_json: statsJson, details_json: detailsJson, ...row }) => ({
+            ...row,
+            stats: statsJson ? JSON.parse(statsJson) : null,
+            details: detailsJson ? JSON.parse(detailsJson) : null,
+        }));
+
+        return res.json({ reconciliations: rows });
     },
 
     alerts(req, res) {

@@ -57,3 +57,54 @@ test('computeIncidentsDiff updates a changed row', () => {
     assert.strictEqual(diff.updates.length, 1);
     assert.deepStrictEqual(diff.updates[0].values, ['2026-11-03', 'Incident', 'ranger3', 'new', '7']);
 });
+
+test('computeUsersDiff reports which fields changed and what was deleted', () => {
+    const rows = [
+        ['Alice', 'Antipoaching', '5', '2026-11-01', 'alice@x.com'],  // deleted in TAI
+        ['Bob', 'Antipoaching', '3', '2026-11-02', 'bob@x.com'],      // value + name changed
+    ];
+
+    const users = [
+        { name: 'Robert', value: 4, date: '2026-11-02', email: 'bob@x.com' },
+        { name: 'Carol', value: 7, date: '2026-11-03', email: 'carol@x.com' },
+    ];
+
+    const { details } = computeUsersDiff(rows, users);
+
+    assert.deepStrictEqual(details.updated, [{
+        key: 'bob@x.com',
+        changes: [
+            { field: 'Name', from: 'Bob', to: 'Robert' },
+            { field: 'Value', from: '3', to: '4' },
+        ],
+    }]);
+
+    assert.deepStrictEqual(details.deleted, [{
+        key: 'alice@x.com',
+        record: { name: 'Alice', department: 'Antipoaching', value: '5', date: '2026-11-01', email: 'alice@x.com' },
+    }]);
+});
+
+test('computeIncidentsDiff reports which fields changed and what was deleted', () => {
+    const rows = [
+        ['2026-11-02', 'Incident', 'ranger2', 'notes', '42'],   // deleted in TAI
+        ['2026-11-03', 'Sighting', 'ranger3', 'old', '7'],      // type + notes changed
+    ];
+
+    const incidents = [{ incidentId: '7', reportDate: '2026-11-03', type: 'Incident', reportedBy: 'ranger3', notes: 'new' }];
+
+    const { details } = computeIncidentsDiff(rows, incidents);
+
+    assert.deepStrictEqual(details.updated, [{
+        key: '7',
+        changes: [
+            { field: 'Type', from: 'Sighting', to: 'Incident' },
+            { field: 'Notes', from: 'old', to: 'new' },
+        ],
+    }]);
+
+    assert.deepStrictEqual(details.deleted, [{
+        key: '42',
+        record: { reportDate: '2026-11-02', type: 'Incident', reportedBy: 'ranger2', notes: 'notes', incidentId: '42' },
+    }]);
+});
