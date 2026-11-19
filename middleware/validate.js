@@ -51,11 +51,8 @@ const validateUserPayload = (req, res, next) => {
     next();
 };
 
-//const VALID_TYPES = ['Sighting', 'Incident'];
-const VALID_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
-
 const validateIncidentPayload = (req, res, next) => {
-    const { reportDate, type, category, severity, reportedBy, team, location, notes } = req.body;
+    const { reportDate, type, reportedBy, notes, incidentId } = req.body;
     const errors = [];
 
     if (!reportDate || typeof reportDate !== 'string') {
@@ -68,6 +65,10 @@ const validateIncidentPayload = (req, res, next) => {
         errors.push('type is required and must be a string');
     }
 
+    const hasIncidentId = typeof incidentId === 'string' || typeof incidentId === 'number';
+    if (!hasIncidentId || String(incidentId).trim() === '') {
+        errors.push('incidentId is required and must be a string or number');
+    }
 
     if (!reportedBy || typeof reportedBy !== 'string') {
         errors.push('reportedBy is required and must be a string');
@@ -84,6 +85,7 @@ const validateIncidentPayload = (req, res, next) => {
     }
 
     // Sanitize for Google Sheets formula injection
+    req.body.incidentId = String(incidentId).trim();
     req.body.reportedBy = sanitizeForSheets(reportedBy.trim());
     if (notes) {
         req.body.notes = sanitizeForSheets(notes.trim());

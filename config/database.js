@@ -41,4 +41,79 @@ db.exec(`
     )
 `);
 
+// Admin users for the dashboard (roles: 'office_admin' | 'technical').
+db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'office_admin',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+// DAG heartbeat runs reported by the Airflow DAGs.
+db.exec(`
+    CREATE TABLE IF NOT EXISTS dag_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dag_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at DATETIME,
+        finished_at DATETIME,
+        error_message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(dag_id, run_id)
+    )
+`);
+
+// Reconciliation run results (type: 'users' | 'incidents').
+db.exec(`
+    CREATE TABLE IF NOT EXISTS reconciliations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        stats_json TEXT,
+        error_message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+// Outbound alert/notification log (channel: 'email' | 'slack').
+db.exec(`
+    CREATE TABLE IF NOT EXISTS alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alert_type TEXT NOT NULL,
+        channel TEXT,
+        recipient TEXT,
+        subject TEXT,
+        status TEXT,
+        error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+// Add columns that may be missing on databases created before this migration.
+function ensureColumn(table, column, definition) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((col) => col.name === column)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+}
+
+ensureColumn('user_updates', 'escalated', 'INTEGER DEFAULT 0');
+ensureColumn('incident_updates', 'escalated', 'INTEGER DEFAULT 0');
+
+// Soft delete: NULL means active, a timestamp means the account was deleted
+// and keeps its row (and audit trail) until restored or purged.
+ensureColumn('users', 'deleted_at', 'DATETIME');
+
+// Per-record change detail for reconciliation runs (updated / deleted rows).
+ensureColumn('reconciliations', 'details_json', 'TEXT');
+
+// Indexes to keep COUNT / paging fast on the large update tables.
+db.exec('CREATE INDEX IF NOT EXISTS idx_user_updates_status ON user_updates(status)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_incident_updates_status ON incident_updates(status)');
+
 module.exports = db;

@@ -10,3 +10,7 @@ __pycache__
 *.backup
 *.bk
 .scannerwork/
+.DS_Store
+.claude/
+.vscode/
+web/dist/

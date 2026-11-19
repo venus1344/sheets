@@ -8,10 +8,13 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 
-from utils.slack_notifications import notify_slack_on_failure
+from utils.heartbeat import make_callbacks, report_started
 
 MYSQL_CONN_ID = "mysql_conn_id"  # Airflow Connection ID
 print(f"mysql conenciton on: {MYSQL_CONN_ID}")
+
+DAG_ID = "user_summary_to_sheets"
+on_success, on_failure = make_callbacks(DAG_ID)
 
 def get_config():
     """Load configuration from Airflow Variables."""
@@ -27,7 +30,8 @@ default_args = {
     "email_on_retry": False,
     "retries": 3,
     "retry_delay": timedelta(minutes=5),
-    "on_failure_callback": notify_slack_on_failure,
+    "on_success_callback": on_success,
+    "on_failure_callback": on_failure,
 }
 
 USER_SUMMARY_QUERY = """
@@ -115,7 +119,7 @@ def send_to_webhook(**context):
 
 
 with DAG(
-    dag_id="user_summary_to_sheets",
+    dag_id=DAG_ID,
     default_args=default_args,
     description="Sync user incident summary from MySQL to Google Sheets",
     schedule="0 6 * * *",  # Daily at 6 AM
@@ -123,6 +127,11 @@ with DAG(
     catchup=False,
     tags=["sheets", "mysql", "users"],
 ) as dag:
+
+    report_started_task = PythonOperator(
+        task_id="report_started",
+        python_callable=report_started(DAG_ID),
+    )
 
     fetch_task = PythonOperator(
         task_id="fetch_user_data",
@@ -134,4 +143,4 @@ with DAG(
         python_callable=send_to_webhook,
     )
 
-    fetch_task >> send_task
+    report_started_task >> fetch_task >> send_task

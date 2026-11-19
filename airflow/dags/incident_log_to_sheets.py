@@ -9,10 +9,13 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 
-from utils.slack_notifications import notify_slack_on_failure
+from utils.heartbeat import make_callbacks, report_started
 
 MYSQL_CONN_ID = "mysql_conn_id"  # Airflow Connection ID
 print(f"mysql conneciton on: {MYSQL_CONN_ID}")
+
+DAG_ID = "incident_log_to_sheets"
+on_success, on_failure = make_callbacks(DAG_ID)
 
 def get_config():
     """Load configuration from Airflow Variables."""
@@ -30,7 +33,8 @@ default_args = {
     "email_on_retry": False,
     "retries": 3,
     "retry_delay": timedelta(minutes=5),
-    "on_failure_callback": notify_slack_on_failure,
+    "on_success_callback": on_success,
+    "on_failure_callback": on_failure,
 }
 
 # Airflow Variable holding the highest incident_reports.id already sent.
@@ -53,6 +57,7 @@ LEFT JOIN `incident_types` as it on it.id = `incident_reports`.`incident_type_id
 LEFT JOIN `users` as u on u.id=reported_by
 WHERE 
     `incident_reports`.`id` > %s
+    AND u.institution_id = 7
 ORDER BY 
     `incident_reports`.`id` ASC;
 """
@@ -60,9 +65,11 @@ ORDER BY
 # First-run seed: treat everything reported at or before INITIAL_SYNC_FROM as
 # already synced so the first run does not replay historical incidents.
 CURSOR_SEED_SQL = """
-SELECT COALESCE(MAX(`id`), 0)
+SELECT COALESCE(MAX(`incident_reports`.`id`), 0)
 FROM `incident_reports`
+LEFT JOIN `users` as u on u.id = `incident_reports`.reported_by
 WHERE reported_datetime <= %s
+  AND u.institution_id = 7
 """
 
 
@@ -166,7 +173,8 @@ def send_to_webhook(**context):
             "reportDate": incident["reported_date"],
             "type": incident["incident_type"],
             "reportedBy": incident["reported_by"],
-            "notes": incident["notes"]
+            "notes": incident["notes"],
+            "incidentId": str(incident["incident_id"]),
         }
 
         try:
@@ -198,7 +206,7 @@ def send_to_webhook(**context):
 
 
 with DAG(
-    dag_id="incident_log_to_sheets",
+    dag_id=DAG_ID,
     default_args=default_args,
     description="Sync incident log from MySQL to Google Sheets",
     schedule="0 6 * * *",  # Daily at 6 AM
@@ -206,6 +214,11 @@ with DAG(
     catchup=False,
     tags=["sheets", "mysql", "incidents"],
 ) as dag:
+
+    report_started_task = PythonOperator(
+        task_id="report_started",
+        python_callable=report_started(DAG_ID),
+    )
 
     fetch_task = PythonOperator(
         task_id="fetch_incident_data",
@@ -217,4 +230,4 @@ with DAG(
         python_callable=send_to_webhook,
     )
 
-    fetch_task >> send_task
+    report_started_task >> fetch_task >> send_task

@@ -1,0 +1,241 @@
+const bcrypt = require('bcryptjs');
+
+const User = require('../models/user');
+const Alert = require('../models/alert');
+const DagRun = require('../models/dag-run');
+const Reconciliation = require('../models/reconciliation');
+const UserUpdate = require('../models/user-update');
+const IncidentUpdate = require('../models/incident-update');
+const usersQueue = require('../queues/sheets.queue');
+const incidentsQueue = require('../queues/incidents.queue');
+const { notifyQueueEscalation } = require('../utils/notifications');
+
+const TECH_ALERT_EMAIL = process.env.TECH_ALERT_EMAIL;
+
+const parseStats = (row) => (row && row.stats_json ? JSON.parse(row.stats_json) : null);
+
+/**
+ * Summarise the latest reconciliation for the overview.
+ *
+ * A completed run has already written its additions, updates and deletions to
+ * the sheet, so the sheet matches the source once it finishes — the counts
+ * describe what was repaired, not what is still wrong. Only a failed run leaves
+ * the two out of sync.
+ */
+function reconciliationSummary(recon) {
+    if (!recon) return null;
+
+    const stats = parseStats(recon);
+    const changed = stats
+        ? (stats.added || 0) + (stats.updated || 0) + (stats.deleted || 0)
+        : 0;
+
+    return { ...recon, stats, changed, inSync: recon.status === 'completed' };
+}
+
+/**
+ * Shared guards for lockout-prone account changes: never let an admin delete
+ * their own access, and never delete the last non-deleted technical account
+ * (that would leave nobody able to manage users).
+ *
+ * Responds with the error and returns false when the change must not happen.
+ */
+function guardUserChange(req, res, target) {
+    if (target.id === req.session.user.id) {
+        res.status(400).json({ error: 'You cannot delete your own account' });
+        return false;
+    }
+    if (target.role === 'technical' && !target.deleted_at && User.countActiveTechnical() <= 1) {
+        res.status(409).json({ error: 'This is the only technical admin. Add another technical admin first.' });
+        return false;
+    }
+    return true;
+}
+
+module.exports = {
+    async login(req, res) {
+        const { email, password } = req.body || {};
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'email and password are required' });
+        }
+
+        const user = User.findByEmail(email);
+        if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        if (user.deleted_at) {
+            return res.status(403).json({ error: 'This account has been deleted. Ask a technical admin to restore it.' });
+        }
+
+        req.session.user = { id: user.id, email: user.email, role: user.role };
+        return res.json({ user: req.session.user });
+    },
+
+    logout(req, res) {
+        req.session.destroy((err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.clearCookie('sheets.sid');
+            return res.json({ success: true });
+        });
+    },
+
+    me(req, res) {
+        return res.json({ user: req.session.user || null });
+    },
+
+    overview(req, res) {
+        const userRecon = Reconciliation.latest('users');
+        const incidentRecon = Reconciliation.latest('incidents');
+
+        return res.json({
+            queues: {
+                users: UserUpdate.stats(),
+                incidents: IncidentUpdate.stats(),
+            },
+            dags: DagRun.recent(10),
+            reconciliation: {
+                users: reconciliationSummary(userRecon),
+                incidents: reconciliationSummary(incidentRecon),
+            },
+            alerts: Alert.recent(5),
+        });
+    },
+
+    dags(req, res) {
+        const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+        return res.json({ dags: DagRun.recent(limit) });
+    },
+
+    updates(req, res) {
+        const type = req.query.type || 'users';
+        const status = req.query.status || null;
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+        const offset = parseInt(req.query.offset, 10) || 0;
+
+        const Model = type === 'incidents' ? IncidentUpdate : UserUpdate;
+        return res.json({
+            type,
+            total: Model.count({ status }),
+            limit,
+            offset,
+            updates: Model.list({ status, limit, offset }),
+        });
+    },
+
+    reconciliations(req, res) {
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+
+        // Parse once here so the SPA never has to know about the JSON columns.
+        const rows = Reconciliation.recent(limit).map(({ stats_json: statsJson, details_json: detailsJson, ...row }) => ({
+            ...row,
+            stats: statsJson ? JSON.parse(statsJson) : null,
+            details: detailsJson ? JSON.parse(detailsJson) : null,
+        }));
+
+        return res.json({ reconciliations: rows });
+    },
+
+    alerts(req, res) {
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+        return res.json({ alerts: Alert.recent(limit) });
+    },
+
+    listUsers(req, res) {
+        return res.json({ users: User.list() });
+    },
+
+    async createUser(req, res) {
+        const { email, password, role } = req.body || {};
+        const errors = [];
+
+        if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.push('a valid email is required');
+        }
+        if (!password || typeof password !== 'string' || password.length < 8) {
+            errors.push('password must be at least 8 characters');
+        }
+        if (!['office_admin', 'technical'].includes(role)) {
+            errors.push('role must be office_admin or technical');
+        }
+
+        if (errors.length) {
+            return res.status(400).json({ error: 'Validation failed', details: errors });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        if (User.findByEmail(normalizedEmail)) {
+            return res.status(409).json({ error: 'A user with that email already exists' });
+        }
+
+        const passwordHash = bcrypt.hashSync(password, 10);
+        const created = User.create({ email: normalizedEmail, passwordHash, role });
+
+        return res.status(201).json({ user: created });
+    },
+
+    /**
+     * Soft delete / restore an account. Deleting stamps `deleted_at`, revoking
+     * dashboard access immediately while keeping the row and its history.
+     */
+    setUserDeleted(req, res) {
+        const { deleted } = req.body || {};
+        if (typeof deleted !== 'boolean') {
+            return res.status(400).json({ error: 'deleted must be true or false' });
+        }
+
+        const target = User.findById(req.params.id);
+        if (!target) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (deleted && !guardUserChange(req, res, target)) {
+            return undefined;
+        }
+
+        return res.json({ user: User.setDeleted(target.id, deleted) });
+    },
+
+    async retry(req, res) {
+        const { type, updateId } = req.body || {};
+
+        if (!type || !updateId) {
+            return res.status(400).json({ error: 'type and updateId are required' });
+        }
+        if (!['users', 'incidents'].includes(type)) {
+            return res.status(400).json({ error: 'type must be users or incidents' });
+        }
+
+        const Model = type === 'users' ? UserUpdate : IncidentUpdate;
+        const Queue = type === 'users' ? usersQueue : incidentsQueue;
+        const jobName = type === 'users' ? 'user-retry' : 'incident-retry';
+
+        const update = Model.find(updateId);
+        if (!update) return res.status(404).json({ error: 'Update not found' });
+        if (update.status !== 'failed') return res.status(400).json({ error: 'Only failed updates can be retried' });
+        if (update.escalated) return res.status(400).json({ error: 'Update already escalated' });
+
+        if (update.retry_count >= update.max_retries) {
+            Model.markEscalated(updateId);
+            Alert.create({
+                alertType: 'queue_escalation',
+                channel: 'email+slack',
+                recipient: TECH_ALERT_EMAIL,
+                subject: `${type} retry escalated: ${updateId}`,
+            });
+            await notifyQueueEscalation({
+                type,
+                updateId,
+                error: update.error_message,
+                retryCount: update.retry_count,
+            });
+            return res.json({ success: true, updateId, escalated: true, retryCount: update.retry_count });
+        }
+
+        const counter = Model.incrementRetry(updateId);
+        Model.markPending(updateId);
+
+        const job = await Queue.add(jobName, { updateId, payload: update.payload });
+
+        return res.json({ success: true, updateId, jobId: job.id, retryCount: counter.retry_count });
+    },
+};
